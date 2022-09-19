@@ -1,26 +1,26 @@
-import * as AWS from 'aws-sdk'
-import * as AWSXRay from 'aws-xray-sdk'
-import { DocumentClient } from 'aws-sdk/clients/dynamodb'
-import { createLogger } from '../utils/logger'
-import { TodoItem } from '../models/TodoItem'
+import * as AWS from 'aws-sdk';
+// import * as AWSXRay from 'aws-xray-sdk'
+import { DocumentClient } from 'aws-sdk/clients/dynamodb';
+import { createLogger } from '../utils/logger';
+import { TodoItem } from '../models/TodoItem';
 import { TodoUpdate } from '../models/TodoUpdate';
 
-const XAWS = AWSXRay.captureAWS(AWS)
+const AWSX = require('aws-xray-sdk');
 
-const logger = createLogger('TodosAccess')
+const XAWS = AWSX.captureAWS(AWS);
+
+const logger = createLogger('TodosAccess');
 
 // TODO: Implement the dataLayer logic
 export class TodosAccess {
     constructor(
-      private readonly todosClient: DocumentClient = new XAWS.DynamoDB.DocumentClient(),
+      private readonly todosClient: DocumentClient = createDynamoDBClient(),
       private readonly todosTable = process.env.TODOS_TABLE,
       private readonly createdAtIndex = process.env.TODOS_CREATED_AT_INDEX
     ) {}
   
     async getAllForUser(userId: string): Promise<TodoItem[]> {
-      logger.info('Getting all todos', {
-        userId
-      })
+      logger.info('Getting all todos', { userId });
   
       const result = await this.todosClient
         .query({
@@ -31,17 +31,17 @@ export class TodosAccess {
             ':userId': userId
           }
         })
-        .promise()
+        .promise();
   
-      const items = result.Items
-      return items as TodoItem[]
+      const items = result.Items;
+      return items as TodoItem[];
     }
   
     async getById(userId: string, todoId: string): Promise<TodoItem> {
       logger.info('Getting a todo by id', {
         userId,
         todoId
-      })
+      });
   
       const result = await this.todosClient.get({
         TableName: this.todosTable,
@@ -49,10 +49,10 @@ export class TodosAccess {
           userId,
           todoId
         }
-      }).promise()
+      }).promise();
   
-      const item = result.Item
-      return item as TodoItem
+      const item = result.Item;
+      return item as TodoItem;
     }
   
     async create(todo: TodoItem) {
@@ -61,7 +61,7 @@ export class TodosAccess {
           TableName: this.todosTable,
           Item: todo
         })
-        .promise()
+        .promise();
     }
   
     async update(userId: string, todoId: string, todoUpdate: TodoUpdate) {
@@ -80,7 +80,7 @@ export class TodosAccess {
         ExpressionAttributeNames: {
           '#name': 'name'
         }
-      }).promise()
+      }).promise();
     }
   
     async setAttachmentUrl(userId: string, todoId: string, attachmentUrl: string) {
@@ -94,7 +94,7 @@ export class TodosAccess {
         ExpressionAttributeValues: {
           ':attachmentUrl': attachmentUrl
         }
-      }).promise()
+      }).promise();
     }
   
     async delete(userId: string, todoId: string) {
@@ -104,6 +104,17 @@ export class TodosAccess {
           userId,
           todoId
         },
-      }).promise()
+      }).promise();
     }
+  }
+
+  function createDynamoDBClient(){
+    if(process.env.IS_OFFLINE){
+      console.log('creating a local dynamo DB instance')
+      return new XAWS.DynamoDB.DocumentClient({
+        region: 'localhost',
+        endpoint: 'http://localhost:8000'
+      });
+    }
+    return new XAWS.DynamoDB.DocumentClient();
   }
